@@ -1,0 +1,208 @@
+---
+title: "STAT545_HW2"
+author: "Tianyi Fang"
+date: "9/17/2017"
+output:
+  html_document: default
+  pdf_document:
+    latex_engine: xelatex
+---
+
+## Problem 1
+## Q1
+Assuming the matrix A is a rank n matrix, it has n linearly independent eigenvectors, which form an eigenspace. The initial vector b can be written as a linear combination of the n eigenvectors, and when b (c_n being the eignspace coefficients) is multiplied to the matrix A, from the two equations, 
+$$Ax = \lambda x$$
+$$A(c_1 x_1 + c_2 x_2 + ... + c_n x_n) = \lambda_1 c_1 x_1 + \lambda_2 c_2 x_2 + ... + \lambda_n c_n x_n$$
+we can see that whenever b is multiplied to A once and gets normalized, the coefficient of the dominant eigenvector (x_1) grows bigger and becomes closer to 1, while the others decrease to zero. This is why the power method with Rayleigh quotient gives the largest eigenvalue and eigenvector.  
+
+
+## Q2
+The condition number is a measurement of how much the output value of a function can change for a small change in the input. Associated with matrix, we have the Ax=b as the function, and we have the condition number as the change in solution x over the change in b (we denote as e here),
+$$
+\max_{e,b\ne0}\frac{\frac{\|A^{-1}e\|}{\|A^{-1}b\|}}{\frac{\|e\|}{\|b\|}} = 
+\max_{e,b\ne0}(\frac{\|A^{-1}e\|}{\|e\|})(\frac{\|b\|}{\|A^{-1}b\|})=
+\max_{e\ne0}(\frac{\|A^{-1}e\|}{\|e\|})\max_{x\ne0}(\frac{\|Ax\|}{\|x\|}) = \|A^{-1}\|\cdot\|A\|
+$$
+As we know, the matrix norm (spectral norm) of a matrix is its largest singular value, and since matrix A is symmetric, we know that the norm will be its largest eigenvalue. Also, the A-inverse has its eigenvalue as reciprocal as the eigenvalues of A (i.e. smallest eigenvalue of A has the largest reciprocal form). As a result, the condition number of a symmetric matrix is the ratio of its largest and smallest eigenvalues.  
+
+
+## Problem 2
+## Q3
+Given a node with index i, its parent node is with index floor(i/2) or i%/%2, and its left child is with index 2xi, while right child is with index 2xi+1
+
+## Q4
+```{r}
+# create a heap
+make_heap <- function(LMAX){
+  # Since it is a max heap, we use -inf here
+  myheap = rep_len(-Inf, LMAX)
+  heap_length = 0
+  # return heap itself and the heap length
+  return(list("heap" = myheap, "len" = heap_length))
+}
+```
+
+## Q5
+```{r}
+# return max without deletion
+find_max <- function(myheap,heap_length)
+  if (heap_length==0) print("The heap is empty") else return(myheap[1])
+```
+
+## Q6
+```{r}
+delete_max <- function(myheap, heap_length){
+  if (heap_length==0){
+    print("The heap is empty")
+    return()
+  }
+  # swap the max with the last element and discard the max (set to default)
+  myheap[c(1,heap_length)] = myheap[c(heap_length,1)]
+  mx = myheap[heap_length]
+  myheap[heap_length] = -Inf
+  heap_length = heap_length-1
+  i = 1
+  #print(myheap)
+  # maintain the representation invariant (RI)
+  # propagation downwards the tree
+  while(2*i<=heap_length){
+    if(2*i+1<=heap_length){
+      if((myheap[2*i]>myheap[i]) | (myheap[2*i+1]>myheap[i])){
+        if (myheap[2*i]>myheap[2*i+1]){
+          myheap[c(i, 2*i)] = myheap[c(2*i, i)]
+          i = 2*i
+        }else{
+          myheap[c(i, 2*i+1)]=myheap[c(2*i+1, i)]
+          i = 2*i+1
+        }
+      }else break
+    }else if(myheap[2*i]>myheap[i]){
+      myheap[c(i, 2*i)] = myheap[c(2*i, i)]
+      i = 2*i
+    }else break
+  }
+  return(list("heap" = myheap, "len" = heap_length, "max" = mx))
+}
+```
+
+## Q7
+```{r}
+insert <- function(myheap, hl, ii){
+  # insert in the last and run RI for upward propagation
+  # hl - heap_length, ii - inserted element
+  myheap[hl+1] = ii
+  #print(myheap)
+  i = hl+1
+  # propagration upward the tree
+  while(i>1){
+    if(myheap[i]>myheap[i%/%2]){
+      myheap[c(i, i%/%2)] = myheap[c(i%/%2, i)]
+      i = i%/%2
+    }else break
+  }
+  return(list("heap" = myheap, "len" = hl+1))
+}
+```
+
+## Q8
+```{r}
+heapsort <- function(n=20){
+  # initilization of the heap
+  hps = make_heap(n)
+  hp = unlist(hps["heap"],use.name=FALSE)
+  hpl = unlist(hps["len"],use.name=FALSE)
+  # create n = 20 random number
+  i = n
+  # loop for sequential input
+  while(i>0){
+    # range can change, accordingly, as long as whithin (-inf, inf)
+    ii = runif(1, -1000, 1000)
+    hps = insert(hp, hpl, ii)
+    hp = unlist(hps["heap"],use.name=FALSE)
+    hpl = unlist(hps["len"],use.name=FALSE)
+    i = i-1
+  }
+  # loop for sequential output max
+  ret = rep_len(0, n)
+  while(i<n){
+    hps = delete_max(hp, hpl)
+    hp = unlist(hps["heap"],use.name=FALSE)
+    hpl = unlist(hps["len"],use.name=FALSE) 
+    ret[i+1] = unlist(hps["max"], use.names=FALSE)
+    i = i+1
+  }
+  return(ret)
+}
+heapsort(20)
+```
+
+## Problem 3
+## Q1-2
+```{r}
+# Assume we have the same-length for w and v as the problem addressed
+# All items are of positive weights and values & W_knapsack is integer
+myKP <- function(w, v, W_knapsack){
+  # boundary check
+  if((length(w)==0) | (W_knapsack<=0)){
+    return(list("val"=0, "obj"=c()))
+  }
+  # create a vector to store the optimal value for subproblems
+  sub = rep_len(0, W_knapsack)
+  sub_obj = rep_len(0, W_knapsack)
+  # sort w to speed up the loop, need change v values accordingly
+  ws = sort(w, index.return=TRUE)
+  w = unlist(ws["x"], use.names=FALSE)
+  w_idx = unlist(ws["ix"], use.names=FALSE)
+  v = v[w_idx]
+  #print(w)
+  #print(v)
+  # use topological sort order
+  for(i in 1:W_knapsack){
+    mymax = 0
+    for(j in 1:length(w)){
+      if (i-w[j]>=0){
+        # tackle the base case (the first item (j) added or not)
+        if (i-w[j]==0){
+          if(mymax<v[j]){
+            mymax = v[j]
+            sub_obj[i] = j
+            }
+          # tackle the subproblem transition from sub[i-w[j]] -> sub[i] using max
+        }else{
+          if (mymax<v[j]+sub[i-w[j]]){
+            mymax = v[j]+sub[i-w[j]]
+            # record the jth item with its index
+            sub_obj[i] = j
+          }
+        }
+      # need not loop anymore since any weight comes after is larger
+      }else{
+        sub[i] = mymax
+        break
+      }
+      sub[i] = mymax
+    }  
+  }
+  #print(sub)
+  #print(sub_obj)
+  return(list("val"=sub, "obj"=sub_obj))
+}
+# test with examples
+w = c(3,2,1,4,5,6)
+v = c(10,8,1,10,19,25)
+sol = myKP(w,v,25)
+# There may be multiple solutions, only return one here
+val = unlist(sol["val"],use.names=FALSE)
+myobj = unlist(sol["obj"], use.names=FALSE)
+cur = which(val==max(val))[1]
+print(cur)
+pack = rep_len(0, length(w))
+while(cur>0){
+  pack[myobj[cur]] = pack[myobj[cur]]+1
+  cur = cur - w[myobj[cur]]
+}
+print("The optimal value is: ")
+print(max(val))
+print("The items that get picked: ")
+print(pack)
+```

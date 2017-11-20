@@ -1,0 +1,177 @@
+---
+title: "HW4"
+author: "Tianyi Fang"
+date: "October 9, 2017"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+###1. Conjugate:
+image:![](C:/Users/Tianyi Fang/Desktop/stat545/HW4/1.1.JPG)
+
+image:![](C:/Users/Tianyi Fang/Desktop/stat545/HW4/1.2.JPG)
+
+###2. EM
+####1~6
+image:![](C:/Users/Tianyi Fang/Desktop/stat545/HW4/2.1.JPG)
+image:![](C:/Users/Tianyi Fang/Desktop/stat545/HW4/2.2.JPG)
+```{r}
+library(ggplot2)
+library(dplyr)
+load_mnist <- function() {
+  # load image files
+  load_image_file <- function(filename) {
+    ret = list()
+    f = file(filename,'rb')
+    readBin(f, 'integer', n = 1, size = 4, endian = 'big')#magic number 2051
+    n    = readBin(f, 'integer', n = 1, size = 4, endian = 'big')# number of images60000
+    nrow = readBin(f, 'integer', n = 1, size = 4, endian = 'big')#number of rows 28
+    ncol = readBin(f, 'integer', n = 1, size = 4, endian = 'big')#num of col 28
+    x = readBin(f, 'integer', n = n * nrow * ncol, size = 1, signed = FALSE)
+    ret$x = matrix(x, ncol=nrow*ncol, byrow=TRUE)
+    close(f)
+    ret
+  }
+  # load label files
+  load_label_file <- function(filename) {
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    n = readBin(f,'integer',n=1,size=4,endian='big')
+    y = readBin(f,'integer',n=n,size=1,signed=F)
+    close(f)
+    y
+  }
+  # load images
+  train <<- load_image_file('train-images-idx3-ubyte')
+  ##test <<- load_image_file('t10k-images-idx3-ubyte')
+  # load labels
+  train$y <<- load_label_file('train-labels-idx1-ubyte')
+  ##test$y <<- load_label_file('t10k-labels-idx1-ubyte')  
+}
+
+# helper function for visualization
+show_digit <- function(arr784, col=gray(12:1/12), ...) {
+  image(matrix(arr784, nrow=28)[,28:1], col=col, ...)
+}
+load_mnist()
+#find images with 2 and 3
+in_digits_2 <- which(train$y==2)
+sum(in_digits_2)
+in_digits_3 <- which(train$y==3)
+sum(in_digits_3)
+#select 1000 images
+image_2<- train$x[in_digits_2, ][1:1000,]
+image_3<- train$x[in_digits_3, ][1:1000,]
+dim(train$x[in_digits_2, ])[1]
+dim(train$x[in_digits_3, ])[1]
+```
+```{r}
+show_digit(image_2[1,])
+show_digit(image_3[1,])
+#set threshold as 4, <4 assign 0, >=4 assign =1
+image_2[image_2 > 4] <- 1
+image_3[image_3 > 4] <- 1
+
+```
+
+```{r}
+#input image dataset, K clusters
+em <- function(image, K){
+  #initialize:
+  N = nrow(image)
+  #D = ncol(image)784
+  set.seed(1)
+  #each cluster has random probability
+  pi <- c(runif(K))/sum(c(runif(K)))
+  #mu, c
+  mu <- matrix(runif(K*784), ncol=784, nrow=K)
+  c <- matrix(rep(0, N*K), ncol=K, nrow=N)
+  #lower bound
+  lower_bound <- rep(0)
+  lower_bound_update <- 1
+  m <- rep(0)
+  #E step
+  i <- 1
+  logc <- matrix(rep(0, N*K), nrow=N, ncol=K)
+  while(lower_bound_update>0.000001){
+    i <- i + 1
+    for(k in 1:K){
+       for(nn in 1:N){
+         logc[nn,k] <- log(pi[k])+sum(image[nn,]*log(mu[k,])+(1-image[nn,])*log(1-mu[k,]))
+         m[nn] <- max(logc[nn,])
+         c[nn,]<- exp(logc[nn,]-m[nn])/sum(exp(logc[nn,]-m[nn]))
+       }
+    }
+    #M step
+    for(k in 1:K){
+      #update pi
+       pi[k] <- sum(c[,k])/N
+       for(d in 1:784){
+         #update mu
+         mu[k,d] <-sum(image[,d]*c[,k])/sum(c[,k])
+        }
+       }
+    #lower bound f
+    lower_bound[i] <- sum(c*logc)
+    lower_bound_update <- abs(lower_bound[i]-lower_bound[i-1])
+    #avoid NA in log(mu)
+    mu[mu==0] <- 1e-100
+    mu[mu==1] <- 0.999999999
+    }
+  entropy <- c*log(c)
+  result <- list(pi, mu, lower_bound, entropy)
+  return(result)
+}
+```
+####8 plot cluster parameter
+```{r}
+em_2 <- em(image_2,2)
+em_3 <- em(image_3,2)
+mu_2 <- em_2[[2]]
+mu_3 <- em_3[[2]]
+#show 2 cluster image
+for(i in 1:2){
+   show_digit(mu_2[i,])
+}
+#show 3 cluster image
+for(i in 1:2){
+     show_digit(mu_3[i,])
+}
+```
+The trace of evolution of F
+```{r}
+lower_bound_2 <- em_2[[3]]
+lower_bound_3 <- em_3[[3]]
+#F of image_2
+lower_bound_2 <-lower_bound_2[-1]
+index <- c(1:length(lower_bound_2))
+plot <- as.data.frame(cbind(index, lower_bound_2))
+plot %>% ggplot(aes(x=index, y=lower_bound_2))+geom_point(color = "red", size = 2) + geom_line(color = "red", size = 1)+labs(x="iteration", y="lower bound", title = "Trace of evolution of Lower bound(k=2)")
+#F of image_3
+lower_bound_3 <-lower_bound_3[-1]
+index_3 <- c(1:length(lower_bound_3))
+plot_3 <- as.data.frame(cbind(index_3, lower_bound_3))
+plot_3 %>% ggplot(aes(x=index_3, y=lower_bound_3))+geom_point(color = "darkblue", size = 2) + geom_line(color = "darkblue", size = 1)+labs(x="iteration", y="lower bound", title = "Trace of evolution of Lower bound(k=3)")
+#write down the value of pi, f
+pi_2 <- em_2[[1]]
+pi_3 <- em_3[[1]]
+print(pi_2, pi_3)
+last_h <- c(lower_bound_2[length(lower_bound_2)], lower_bound_3[length(lower_bound_3)])
+print(last_h)
+```
+####9.Entropy
+```{r}
+entropy_2 <- em_2[[4]]
+entropy_3 <- em_3[[4]]
+#K=2, calculate the entropy for final q of each digit
+print(entropy_2)
+#plot the digit with largest entrpopy
+show_digit(image_2[which.max(rowSums(entropy_2)),])
+show_digit(image_3[which.max(rowSums(entropy_3)),])
+```
+
+
+
+
+

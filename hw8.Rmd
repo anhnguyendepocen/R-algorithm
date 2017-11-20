@@ -1,0 +1,349 @@
+---
+title: "Stats 545 HW3"
+author: "Tianyi Fang"
+date: "September 28,2017"
+output: pdf_document
+---
+##question 1
+#1,
+```{r setup, include=FALSE}
+load_image_file = function(filename){
+    ret = list()
+    f = file(filename, 'rb') 
+    readBin(f, 'integer', n=1,size=4,endian = 'big')
+    ret$n = readBin(f,'integer',n=1,size=4,endian='big')
+    nrow = readBin(f,'integer',n=1,size=4,endian='big')
+    ncol = readBin(f,'integer',n=1,size=4,endian='big')
+    x = readBin(f,'integer',n=ret$n*nrow*ncol,size=1,signed=F)
+    ret$x = matrix(x, ncol=nrow*ncol, byrow=T)
+    close(f)
+    ret
+  }
+load_label_file = function(filename){
+     f = file(filename,'rb')
+     readBin(f,'integer',n=1,size=4,endian='big')
+     n = readBin(f,'integer',n=1,size=4,endian='big')
+     y = readBin(f,'integer',n=n,size=1,signed=F)
+     close(f)
+     y
+}
+train <<- load_image_file('C:/Users/Tianqiao/Desktop/study/purdue/17fall/STAT545 intro to computational stat/homework/train-images-idx3-ubyte/train-images.idx3-ubyte')
+test <<- load_label_file('C:/Users/Tianqiao/Desktop/study/purdue/17fall/STAT545 intro to computational stat/homework/train-labels-idx1-ubyte/train-labels.idx1-ubyte')  
+
+
+show_digit = function(arr784, col = gray(12:1/12), ...){
+  image(matrix(arr784,nrow = 28)[,28:1], col = col, ...)
+}
+digits = train$x[1:1000,]
+labels = test[1:1000]
+show_digit(digits[5,])
+```
+
+#2, include (a), (b), (c)
+```{r}
+max = 255 #maximum value of one point one dim
+#function computing distance between a vector and each row of a matrix
+dist_vec2mat = function(x,mat){
+  apply(mat,1,function(r) sum((r - x)^2))
+}
+#function computing every row of input_matrix
+dist_mat2mat = function(input_mat, ref_mat) {
+  dist_mat = apply(input_mat, 1, function(r) dist_vec2mat(r, ref_mat))
+  return(cbind(t(dist_mat), max.col(-t(dist_mat))))#last column is their belonging cluster
+}
+#example dist_mat2mat(digits,matrix(c(runif(3*784, min=0, max=255)),nrow = 3, ncol = 784))
+#pure distance dunction between mat 2 mat
+distance_mat2mat = function(input_mat, ref_mat){
+  dist_mat = apply(input_mat, 1, function(r) dist_vec2mat(r, ref_mat))
+  return(t(dist_mat))
+}
+get_cluster = function(matrix){
+  dist = apply(matrix,1,function(r) c(t(r[r[length(r)]]),r[length(r)]))
+  return(t(dist))
+}
+#k_means function
+my_kmeans = function(matrix_digits, k, N){
+  min_old = Inf
+  loss_record = list()#record N times loss function value
+  loss_min = list()#N times minimum loss value
+  for(i in 1:N){
+    set.seed(i)
+    mean_new = matrix(c(runif(k*784, min=0, max=255)),nrow = k, ncol = 784) #generate k cluster mean, every row is one mean for future cluster
+    mean_dif = 100000000000
+    loss_for_N = list()
+    loss_b = list()#loss for question b
+    while(mean_dif>0.001){#threshold
+      mean_old = mean_new
+      mean_new = matrix(c(rep(0)), nrow = k, ncol = 784)
+      cluster = dist_mat2mat(digits, mean_old)
+      for(j in 1:k){
+        #value_cluster = cluster[,cluster[2,] == j]
+        if(j %in% cluster[,k+1]){
+          po_of_cluster = digits[cluster[,k+1]==j,]
+          mean_of_cluster = rowMeans(t(po_of_cluster))
+          mean_new[j,] = mean_of_cluster
+        }
+        else{
+          mean_new[j,] = matrix(c(rep(1,784)),nrow=1,ncol = 784)#mean_new[j,] = mean_old[j,]
+        }
+      }
+      mean_dif = max(matrix(rowSums(abs(mean_old-mean_new)),nrow=k,ncol=1))#the max difference between new theta and old theta
+      assig_cluster = get_cluster(dist_mat2mat(digits,mean_new)) #new theta cluster assignment
+      loss = sum(assig_cluster[,1])#loss function for each iteration
+      loss_b = append(loss_b,loss)
+    }
+    loss_min = append(loss_min, loss_b[length(loss_b)][1])#N minimum loss value
+    if((loss_b[length(loss_b)][[1]]) < min_old){
+      final_best_cluster_par = mean_new
+      final_best_cluster_assign = assig_cluster
+      best_sequence_loss = loss_b
+      min_old = loss_b[length(loss_b)][[1]]
+    }
+  }
+  return(list('(a) answer parameter:' = final_best_cluster_par, '(a) answer assignment:' =final_best_cluster_assign,'(b) best sequence loss:' = best_sequence_loss,'(c) N-terminal loss:' =loss_min))
+}
+my_kmeans(digits,6,10)
+```
+
+#3, stopping criteria 
+```{r}
+#I compare the difference between the old theta and the new theta, compare by row to row, for example, 
+#I compare the first row of old theta and first row of new theta, I compare the second row of old theta 
+#and second row of new theta, till k row of old theta and k row of new theta, then use rowsum to get total 
+#difference between old theta and new theta, I extract the maximum value of the difference vector and when
+#the maximum value is bellow 0.01, I stop the while loop, since the maximum change of the point is under 0.01.
+```
+
+#4 and 5, plot
+all plot for k=5
+```{r}
+result_5 = my_kmeans(digits, 5, 25)
+cluster_5_mean = unlist(result_5['(a) answer parameter:'],use.names = FALSE)
+loss_5_evolution = unlist(result_5['(b) best sequence loss:'],use.names = FALSE)
+```
+
+```{r}
+# plot
+term_loss = result_5['(c) N-terminal loss:']
+cluster_5_mean = matrix(cluster_5_mean, nrow=5, ncol = 784)
+for(i in 1:5){
+  show_digit(cluster_5_mean[i,])
+}
+library(ggplot2)
+
+#loss diagram
+x_loss_5_evolution = c(1:length(loss_5_evolution))
+ggplot(data = NULL, aes(x = x_loss_5_evolution, y = loss_5_evolution))+
+  geom_point(color = 'red')+
+  ylab('loss function value')+xlab('running times in while loop')+
+  ggtitle('loss function evolution for k=5')
+
+#diagram problem 5
+term_loss = as.data.frame(unlist(term_loss))
+ggplot(data = term_loss, aes(x = unlist(term_loss)))+
+  geom_density(aes(y=..scaled..),stat = 'density',position = 'identity', alpha = 0.3)+
+  xlab('terminal loss function')+
+  ylab('Density')+
+  ggtitle('distribution of terminal loss function values')
+```
+
+plot for k=10
+```{r}
+result_10 = my_kmeans(digits, 10, 25)
+cluster_10_mean = unlist(result_10['(a) answer parameter:'],use.names = FALSE)
+loss_10_evolution = unlist(result_10['(b) best sequence loss:'],use.names = FALSE)
+```
+
+```{r}
+# plot
+term_loss_10 = result_10['(c) N-terminal loss:']
+cluster_10_mean = matrix(cluster_10_mean, nrow=10, ncol = 784)
+for(i in 1:10){
+  show_digit(cluster_10_mean[i,])
+}
+library(ggplot2)
+
+#loss diagram
+x_loss_10_evolution = c(1:length(loss_10_evolution))
+ggplot(data = NULL, aes(x = x_loss_10_evolution, y = loss_10_evolution))+
+  geom_point(color = 'red')+
+  ylab('loss function value')+xlab('running times in while loop')+
+  ggtitle('loss function evolution for k=10')
+
+#diagram problem 5
+term_loss_10 = as.data.frame(unlist(term_loss_10))
+ggplot(data = term_loss_10, aes(x = unlist(term_loss_10)))+
+  geom_density(aes(y=..scaled..),stat = 'density',position = 'identity', alpha = 0.3)+
+  xlab('terminal loss function')+
+  ylab('Density')+
+  ggtitle('distribution of terminal loss function values when k=10')
+```
+
+plot for k=20
+```{r}
+result_20 = my_kmeans(digits, 20, 25)
+cluster_20_mean = unlist(result_20['(a) answer parameter:'],use.names = FALSE)
+loss_20_evolution = unlist(result_20['(b) best sequence loss:'],use.names = FALSE)
+```
+
+```{r}
+# plot
+term_loss_20 = result_20['(c) N-terminal loss:']
+cluster_20_mean = matrix(cluster_20_mean, nrow=20, ncol = 784)
+for(i in 1:20){
+  show_digit(cluster_20_mean[i,])
+}
+library(ggplot2)
+
+#loss diagram
+x_loss_20_evolution = c(1:length(loss_20_evolution))
+ggplot(data = NULL, aes(x = x_loss_20_evolution, y = loss_20_evolution))+
+  geom_point(color = 'red')+
+  ylab('loss function value')+xlab('running times in while loop')+
+  ggtitle('loss function evolution for k=20')
+
+#diagram problem 5
+term_loss_20 = as.data.frame(unlist(term_loss_20))
+ggplot(data = term_loss_20, aes(x = unlist(term_loss_20)))+
+  geom_density(aes(y=..scaled..),stat = 'density',position = 'identity', alpha = 0.3)+
+  xlab('terminal loss function')+
+  ylab('Density')+
+  ggtitle('distribution of terminal loss function values when k=20')
+```
+
+#6, how to choose K
+I use bootstrap method to choose my k value, I assign k value with a small number like 2 or 3 and I calculate the minimum loss function value under this k value. Then I assign a new value k+1 to k, and calculate the minimum loss function value of new k value. I will continue doing this when the loss function value under new k value is lees than 95% of old k value. Once new k value's loss function is greater than 95% of the old k value's, the old k value will be my prefer number of clusters K, since the greater the k is, the more complex the computation is.
+
+##Bonus
+#7
+```{r}
+#function computing distance between a vector and each row of a matrix
+dist_vec2mat = function(x,mat){
+  apply(mat,1,function(r) sum((r - x)^2))
+}
+
+
+
+#function computing every row of input_matrix
+dist_mat2mat = function(input_mat, ref_mat) {
+  dist_mat = apply(input_mat, 1, function(r) dist_vec2mat(r, ref_mat))
+  return(cbind(t(dist_mat), max.col(-t(dist_mat))))#last column is their belonging cluster
+}
+#example dist_mat2mat(digits,matrix(c(runif(3*784, min=0, max=255)),nrow = 3, ncol = 784))
+
+
+
+#pure distance dunction between mat 2 mat
+distance_mat2mat = function(input_mat, ref_mat){
+  dist_mat = apply(input_mat, 1, function(r) dist_vec2mat(r, ref_mat))
+  return(t(dist_mat))
+}
+
+#get prototype
+get_prototype = function(cluster_matrix){
+  mean = matrix(c(rep(0)),nrow = 1, ncol = 784)
+  distance_number_old = Inf
+  for(i in 1:dim(cluster_matrix)[[1]]){
+    distance_po_vector = dist_vec2mat(cluster_matrix[i,],cluster_matrix)
+    distance_number_new = sum(distance_po_vector)
+    if(distance_number_new < distance_number_old){
+      mean = cluster_matrix[i,]
+      distance_number_old = distance_number_new
+    }
+  }
+  return(mean)
+}
+
+
+
+
+get_cluster = function(matrix){
+  dist = apply(matrix,1,function(r) c(t(r[r[length(r)]]),r[length(r)]))
+  return(t(dist))
+}
+#k_medoids function
+my_medoids = function(matrix_digits, k, N){
+  min_old = Inf
+  loss_record = list()#record N times loss function value
+  loss_min = list()#N times minimum loss value
+  for(i in 1:N){
+    set.seed(i)
+    mean_new = matrix_digits[3*(1:k),] #generate k cluster mean, extract from digits_new
+    mean_dif = 100000000000
+    loss_for_N = list()
+    loss_b = list()#loss for question b
+    while(mean_dif>0.001){#threshold
+      mean_old = mean_new
+      mean_new = matrix(c(rep(0)), nrow = k, ncol = 784)
+      cluster = dist_mat2mat(matrix_digits, mean_old)
+      for(j in 1:k){
+        #value_cluster = cluster[,cluster[2,] == j]
+        if(j %in% cluster[,k+1]){
+          po_of_cluster = matrix_digits[cluster[,k+1]==j,]
+          mean_of_cluster = get_prototype(po_of_cluster)
+          mean_new[j,] = mean_of_cluster
+        }
+        else{
+          mean_new[j,] = matrix_digits[j+10,]#mean_new[j,] = mean_old[j,]
+        }
+      }
+      mean_dif = max(matrix(rowSums(abs(mean_old-mean_new)),nrow=k,ncol=1))#the max difference between new theta and old theta
+      assig_cluster = get_cluster(dist_mat2mat(matrix_digits,mean_new)) #new theta cluster assignment
+      loss = sum(assig_cluster[,1])#loss function for each iteration
+      loss_b = append(loss_b,loss)
+    }
+    loss_min = append(loss_min, loss_b[length(loss_b)][1])#N minimum loss value
+    if((loss_b[length(loss_b)][[1]]) < min_old){
+      final_best_cluster_par = mean_new
+      final_best_cluster_assign = assig_cluster
+      best_sequence_loss = loss_b
+      min_old = loss_b[length(loss_b)][[1]]
+    }
+  }
+  return(list('(a) answer parameter:' = final_best_cluster_par, '(a) answer assignment:' =final_best_cluster_assign,'(b) best sequence loss:' = best_sequence_loss,'(c) N-terminal loss:' =loss_min))
+}
+# my_medoids(digits_new,5,2) example if you want to try
+```
+
+#8
+k=5
+```{r}
+# I use the first 200 images
+# mean_new is the cluster prototype
+#I do not want too much output, so I just output final cluster parameters and turn it into image type, 
+#you can run the code to get the full output. include all the request in question 2
+#first 100 digits
+digits_new = digits[1:200,]
+
+output_5 = my_medoids(digits_new,5,25)['(a) answer parameter:']
+output_5 = unlist(output_5, use.names = FALSE)
+output_5 = matrix(output_5, nrow = 5 ,ncol = 784)
+for(i in 1:5){
+  show_digit(output_5[i,])
+}
+```
+
+k = 10
+```{r}
+output_10 = my_medoids(digits_new,10,25)['(a) answer parameter:']
+output_10 = unlist(output_10, use.names = FALSE)
+output_10 = matrix(output_10, nrow = 10 ,ncol = 784)
+for(i in 1:10){
+  show_digit(output_10[i,])
+}
+```
+
+k = 20
+```{r}
+#for k = 20, I try more digitsm cause the cluster number is too big
+digits_new_new = digits[1:500,]
+output_20 = my_medoids(digits_new_new,20,25)['(a) answer parameter:']
+output_20 = unlist(output_20, use.names = FALSE)
+output_20 = matrix(output_20, nrow = 20 ,ncol = 784)
+for(i in 1:20){
+  show_digit(output_20[i,])
+}
+```
+
+
+

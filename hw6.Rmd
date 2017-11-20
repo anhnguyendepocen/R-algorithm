@@ -1,0 +1,347 @@
+---
+title: "HW6"
+author: "Tianyi Fang"
+date: "November 15, 2017"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##1.Generate Gamma Distribution with Rejection Sampling
+####1.
+U ~uniform(0,1), X ~ exp($\lambda$) 
+
+
+Let U equals to The CDF of X is $F(X) = 1-e^{-\lambda x}$, Then $F^{-1}(U)=\frac{log(1-U)}{\lambda}$. That is, we sample from U by runif(1), then get the value of $F^{-1}(U)$, that is X~exp($\lambda$).
+
+####2. 
+The CDF of is F(Y) = $\int_{0}^{y}\frac{1}{y^a}dy = \frac{1}{1-a}y^{-a+1}$
+
+The normalization constant is $Z = \int_{0}^{1}\frac{1}{y^a}dy = \frac{1}{1-a}y^{-a+1}|_{0}^{1} = \frac{1}{1-a}{1^{-a}}$.
+
+We first sample from U by runif(1), then calculate $Y = F^{-1}(U) = ((1-a)U)^{\frac{1}{1-a}}$, that's how we generate Y.
+
+####3.
+The density of Gamma Distribution is $P_{Gamma}(X|\alpha,\beta) = \frac{\beta^{\alpha}}{\Gamma(\alpha)}x^{\alpha-1}e^{-\beta x}$
+
+####4.Sample Gamma(int, 1)
+From part 1, we get $X_1$~exp(1),..., $X_n$~exp(1), $X_1 +...+ X_n$ ~ Gamma(int,1). We genearate $X_i$ by inverse.cdf sampling from $U_i$ ~ runif(1), then we add them up.
+
+
+Gamma(int,1) = $\sum_{i=1}^{N}exp(1) = \sum_{i=1}^{N}-log(U_i)=-\sum_{i=1}^{N}-log(U_i)$.
+Since $exp(X_1) = - log(U) ~ Gamma(1,1), exp(x_i) = -log(U_i)$
+
+####5.
+For $\alpha$<1, $P_G(X|\alpha,1) \le C_1X^{\alpha-1}$
+
+For x<1. Since $P_G(X|\alpha,1) = \frac{1}{\Gamma(\alpha)X^{\alpha-1}e^{-X}} \le C_1X^{\alpha-1}$, then $\frac{1}{\Gamma}e^{-X} \le C_1$, we can find the maximum of $\frac{1}{\Gamma}e^{-X}$, as $X \in [0,1]$, So $\frac{1}{\Gamma}e^{-X} = \frac{1}{\Gamma}|_{x = 0} = C_1$
+
+For x>1, $P_G(X) \le C_2exp(-X), P_G(X) = \frac{1}{\Gamma(\alpha)X^{\alpha-1}e^{-X}} \le C_2e^{-X}$, then $\frac{1}{\Gamma}X^{\alpha-1} \le C_2$. Find the maximum of $\frac{1}{\Gamma}X^{\alpha-1}$ as $X \in [1,+ \infty]$, $C_2 = \frac{1}{\Gamma}$.
+
+####6.
+$q(X|\alpha) = \begin{cases}\frac{x^{\alpha-1}}{\Gamma(\alpha)} & 0 \le x < 1 \\
+\frac{e^{-x}}{\Gamma(\alpha)}& 1 \le x \end{cases}$
+####7.
+$\mathbf{GS}$ for fraction
+\begin{enumerate}
+\item 
+Generate U ~ runif(U), b <- $\frac{e+a}{e}$, p <- bU, if p >1, go 3.
+\item 
+($Case x\le 1$) x <- $p^{\frac{1}{a}}, generate u^{\*}, if u^{\*} > e^{-x}$, go 1(rejection).
+\item 
+($Case x > 1$), set $x <- ln(\frac{b-p}{a}), generate u^{\*}, if u^{\*} > x^{\alpha -1}$ go 1(rejection).
+\item 
+Otherwise $x^{\*}$ = x(accept).
+\end{enumerate}
+The acceptance probability is 
+
+####8.
+Generate Gamma(X|$\alpha$, 1)
+There will be 3 parts to sample from P_{Gamma}(x|$\alpha$,1).
+
+$\mathbf{Two parts}$
+
+\begin{enumerate}
+\item 
+First, split $\alpha$ into int m = [$\alpha$], and fraction f = $\alpha - m$.
+\item 
+If m = 0, set y  <- 0, go to 3.
+Otherwise, take sample y ~ Gamma(m,1) using GM
+\item 
+If f = 0, set y <- 0, go to 4.
+Otherwise sample z ~Gamma(f,1) using GS, as shown in part 7.
+\item 
+ X = y + z
+\end{enumerate}
+
+$\mathbf{GM}$ for integer
+\begin{enumerate}
+\item 
+Initial i <- p <- 1
+\item 
+Generate U ~ runif(1), p <- pU
+\item 
+if i = n, x = -lnp
+Otherwise, set i = i + 1, go 1.
+For arbitrary $\alpha$ and $\beta$,
+\end{enumerate}
+
+
+
+##2.Explore the space of permutations with MH
+####1.How many possible bijective function?
+Since there are 30 unique symbols, the first symbol has 30 choices(including itself), the second symbol has 29 choices of encode, so the total possible function is $30!$ 
+####2.read file
+```{r}
+library(ggplot2)
+fileName <- "war_and_peace.txt"
+warpeace <- readChar(fileName, file.info(fileName)$size)
+warpeace <- tolower(warpeace)
+warpeace <- strsplit(warpeace,'')
+symbol <- c("a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z",".",","," ",":")
+#calculate and plot the histogram of the frequency for each letter
+warpeace <- unlist(warpeace)
+war_peace <- warpeace[warpeace %in% symbol]
+```
+Table of letter's frequency, histogram, and Entropy
+```{r}
+table(war_peace)
+barplot(table(war_peace), las=2, main = "Frequency of each character")
+#entropy
+freq <- table(war_peace)/length(war_peace)
+entropy <- -sum(freq %*% log(freq))
+```
+####3. 
+For the given data D,here is our War and Peace, so its sufficient statistics is the frequency transition matrix T. That is the sequence of how one letter is followed by other letters, for example, after letter "a", there are 3000 "b", or 23000 "c"...follow. This sequency-frequency transition matrix is the sufficient statistics of "War and Peace". For different book, the sequency-frequency transition matrix is different.
+
+The joint probability is:
+\\
+$$P(X)=P(x_1,x_2,x_3,...x_N|T)=P(x_2,x_3,...,x_N|x_1,T) = \prod_{i=1}^{30}\prod_{j=1}^{30}\prod_{t=2}^{N-1}T_{ij}^{\delta(x_t = i, x_{t+1} = j)}$$
+\\
+$$MLE P(T|D)=P(T_{ij})=\frac{\# of x_i \to x_j}{\# of x_i \to x_j}$$
+\\
+####4.T, max/min entropy
+```{r}
+#transition matrix
+T <- table(war_peace[1:length(war_peace)-1], war_peace[2:length(war_peace)])
+T.prop <- T/rowSums(T)
+heatmap(T.prop, col = cm.colors(256), Rowv = NA, Colv = NA, main = "The heatmap of T")
+#avoid NA
+no.T <- T+1
+no.T.prop <- no.T/rowSums(no.T)
+#T[which(T==0)] <- 0.0000001
+entropyRow <- apply(no.T.prop,1, function(x) -sum(x %*% log(x)))
+entropyRow
+max.H <- entropyRow[which.max(entropyRow)]
+min.H <- entropyRow[which.min(entropyRow)]
+print("The symbol with largest entropy is")
+max.H
+print("The symbol with smallest entropy is")
+min.H
+#rownames(T)
+```
+####5.
+$$log(P(X|\sigma))=P_{eng}(\dot|T)\prod_{i=1}^{N-1}T(perm[x_i],perm[x_{i+1}])$$
+```{r}
+log.prob <- function(perm, message, T.matrix){
+  #initial prob
+  log.prob <- log(1/30)
+  last.letter = substring(message,1,1)
+  for(i in 2: nchar(message)){
+    current.letter = substring(message,i,i)
+    log.prob = log.prob + log(T.matrix[rownames(T.matrix)==last.letter,colnames(T.matrix)==current.letter])
+    last.letter = current.letter
+  }
+  log.prob
+}
+```
+
+
+
+####6.Why directly sampling from posterior is not easy.
+Because the posterior is a too complex integral to be calculated. Even though we use log probability, as we have N letters, multiple the probability of each letter will be extremely small(close to 0), so directly sampling is not that easy.
+
+####7.
+proposal distribution:\\
+The proposal chain is the proposal distribution
+
+acceptance probability:
+$$\alpha = min(1, \frac{\pi(x^{\*}q(x_n|x^{\*}))}{\pi(x_n)q(x^{*}|x_n)})=min(1, \frac{f(x^{*}}{f(x_n)}$$
+
+####8. MH algorithm
+```{r}
+txt <- "ye,o:tormhxweov:do,dhbi,ivxhyoh,,i,:beo,vo,meorvxt,d:r,ivxovfo dvwdhztpoixt,ehbovfoizhwixixwo,mh,ov:dozhixo,htjoito,voixt,d:r,ohorvz :,edoqmh,o,vobvaoye,o:torvxrex,dh,eodh,medovxoeg yhixixwo,vom:zhxokeixwtoqmh,oqeoqhx,ohorvz :,edo,vobvsoo,meo dhr,i,ivxedovfoyi,edh,eo dvwdhzzixworhxokeodewhdbebohtohxoetthlit,aoqmvteozhixorvxredxoitoqi,moeg vti,ivxohxboegreyyexreovfot,lyesot:rmohxoh:,mvdaoqi,mo,meth:d:toixomhxbaormvvteto,meoxhzetovfonhdihkyetorhdef:yylohxboeg yhixtoqmh,oehrmonhdihkyeozehxtsomeovdotmeot,dinetofvdoho dvwdhzo,mh,oitorvz demextikyeokerh:teoi,torvxre ,tomhneokeexoix,dvb:reboixohxovdbedo,mh,oitoket,ofvdom:zhxo:xbedt,hxbixwao:tixwohozig,:deovfofvdzhyohxboixfvdzhyoze,mvbto,mh,odeixfvdreoehrmov,medso"
+
+########initial permutation#######
+pperm <- c(letters," ",",",".",":")
+names(pperm) <- c(letters," ",",",".",":")
+
+#decode the cipher txt based on permutation
+decoded <- function(perm, X){
+  coded = tolower(X)
+  decoded = X
+  for (i in 1: nchar(coded)){
+      substring(decoded, i, i) = names(perm[perm ==substring(coded, i, i)])
+    }
+  decoded
+}
+#test
+#tt <- decoded(pperm,txt)
+
+########code function#########
+coded <- function(perm,X){
+  set.seed(1)
+  cc <- sample(perm)
+  names(cc) <- names(perm)
+  cipher <- decoded(cc, X)
+}
+#hh<- coded(pperm, correctTxt)
+
+########log probability#########
+log.prob <- function(perm, decoded){
+  #initial prob
+  log.prob <- log(1/30)
+  last.letter = substring(decoded,1,1)
+  for(i in 2: nchar(decoded)){
+    current.letter = substring(decoded,i,i)
+    log.prob = log.prob + log(no.T.prop[rownames(no.T)==last.letter,colnames(no.T)==current.letter])
+    last.letter = current.letter
+  }
+  log.prob
+}
+```
+Metropolis-Hasting Algorithm
+```{r}
+#initial permutation list
+perm.list <- list()
+for(i in 1:7){
+  set.seed(i)
+  ini.perm <- sample(pperm)
+  names(ini.perm) <- names(pperm)
+  perm.list[[i]] <- ini.perm
+}
+
+MH <- function(txt, ini.perm){
+  #initialize
+  perm = ini.perm
+  log.like <- c()
+  cur.decode <- decoded(perm,txt)
+  cur.loglike = log.prob(perm, cur.decode)
+  t = 1
+  iteration = 5000
+  while(t<=iteration){
+    #randomly select 2 letters to swap
+    proposal = sample(1:30,2)
+    prop.perm = perm
+    prop.perm[proposal[1]] = perm[proposal[2]] 
+    prop.perm[proposal[2]] = perm[proposal[1]]
+    #get new proposal result
+    prop.decode = decoded(prop.perm, txt)
+    prop.loglike = log.prob(prop.perm, prop.decode)
+
+    #accept/reject
+    acc <- exp(prop.loglike-cur.loglike)
+    if(runif(1) < acc){
+      perm=prop.perm
+      cur.decode = prop.decode
+      cur.loglike = prop.loglike
+    }
+    #record loglikelihood value
+    log.like[t] <- cur.loglike
+    t=t+1
+    #print first 20 chr every 100 iteration
+    if(t%%100==0){
+      c <- unlist(strsplit(cur.decode,""))[1:20]
+      cat(t, c,"\n") 
+    }
+    
+  }
+  return(list(cur.decode, log.like))
+}
+test1 <- MH(txt, perm.list[[3]])
+test1[[1]]
+test2<- MH(txt, perm.list[[2]])
+test2[[1]]
+
+```
+
+```{r}
+plot(test[[2]], xlab = "iteration", ylab = "loglikelihood", type = "l", main = "Evolutio of loglikelihood based on transition matrix")
+```
+
+####9.Highest and Lowest Uncertainty
+```{r}
+
+
+
+
+```
+
+
+####10.based on frequency matrix to decode
+```{r}
+#frequency table
+freq
+#use freq table to calculate loglikelihood
+log.freq <- function(perm, decoded){
+  #initial prob
+  log.freq <- log(1/30)
+  #last.letter = substring(decoded,1,1)
+  for(i in 2: nchar(decoded)){
+    letter = substring(decoded,i,i)
+    log.freq = log.freq + log(freq[rownames(freq)==letter])
+  }
+  log.freq
+}
+#log.freq(perm.list[[3]], correctTxt)
+
+#MH on freq matrix
+MH.freq <- function(txt, ini.perm){
+  #initialize
+  perm = ini.perm
+  log.like <- c()
+  cur.decode <- decoded(perm,txt)
+  cur.loglike = log.freq(perm, cur.decode)
+  t = 1
+  iteration = 4000
+  while(t<=iteration){
+    #randomly select 2 letters to swap
+    proposal = sample(1:30,2)
+    prop.perm = perm
+    prop.perm[proposal[1]] = perm[proposal[2]] 
+    prop.perm[proposal[2]] = perm[proposal[1]]
+    #get new proposal result
+    prop.decode = decoded(prop.perm, txt)
+    prop.loglike = log.freq(prop.perm, prop.decode)
+
+    #accept/reject
+    acc <- exp(prop.loglike-cur.loglike)
+    if(runif(1) < acc){
+      perm=prop.perm
+      cur.decode = prop.decode
+      cur.loglike = prop.loglike
+    }
+    #record loglikelihood value
+    log.like[t] <- cur.loglike
+    t=t+1
+    #print first 20 chr every 100 iteration
+    if(t%%100==0){
+      c <- unlist(strsplit(cur.decode,""))[1:20]
+      cat(t, c,"\n") 
+    }
+    
+  }
+  return(list(cur.decode, log.like))
+}
+result.freq <- MH.freq(txt, perm.list[[1]])
+#plot
+plot(result.freq[[2]], xlab="iteration",ylab = "loglikelihood", type = "l", main = "Evolution of loglikelihood based on frequency matrix")
+```
+
+Use the frequency matrix as probability matrix. From the result plot of loglikelihood, we can see that it becomes stable at nearly 600 iteration, but when we check the decoded txt, it does not show any readible information. But when taking a close look at each iteration, there are sometimes get close to the right answer, but then, it flips quickly. This method shows more fluctuation than using likelihood.
+
+####11.Comment on Usefulness and feasibility of MCMC for decoding where the next symbol depends on pervious 2 or 5 symbols.
+If use pervious 2 to 5 symbols when decoding, that will be much faster and useful, because we are decoding English words, every word has some patterns. For example, if we have "th", then the next has large posibility to be "e", or for "wh", it could be followed by"at","en","ere". If we have 5 pervious letters known, things will get much easier. It is also due to the characteristic of English word, there are roots we can use. Another thing is for letters like "y","q","w", they can only be followed by letters like "e","a","i","o","u".
